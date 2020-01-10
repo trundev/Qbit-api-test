@@ -1,0 +1,12 @@
+{
+  "name": "Qbit-api-test",
+  "version": "1.0.0",
+  "description": "Qbit-api test program",
+  "license": "MIT",
+  "dependencies": {
+    "microbit": "lancaster-university/microbit#v2.1.1",
+    "Qbit-api": "trundev/Qbit-api#master"
+  },
+  "targetDependencies": {},
+  "bin": "."
+}

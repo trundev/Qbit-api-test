@@ -1,0 +1,99 @@
+name: Build
+
+on: [push]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    env:
+      # The name of final image
+      MODULE_NAME: Qbit-api-test
+      # The yotta target
+      TARGET: 'bbc-microbit-classic-gcc'
+      # Link to download the cross-compiller, see:
+      # https://developer.arm.com/tools-and-software/open-source-software/developer-tools/gnu-toolchain/gnu-rm/downloads
+      ARM_GCC_URL: 'https://developer.arm.com/-/media/Files/downloads/gnu-rm/9-2019q4/RC2.1/gcc-arm-none-eabi-9-2019-q4-major-x86_64-linux.tar.bz2'
+
+    steps:
+    - uses: actions/checkout@v1
+
+    #
+    # Prerequisites
+    #
+    - uses: actions/setup-python@v1
+      with:
+        python-version: '3.8'
+
+    - name: Install yotta
+      run: |
+        python --version
+        pip install --upgrade pip setuptools
+        pip install yotta
+        yotta --version
+
+    - name: Install Ninja
+      run: sudo apt-get install ninja-build
+
+    - name: Install srecord
+      run: sudo apt-get install srecord
+
+    - name: Download ARM GCC
+      run: |
+        wget $ARM_GCC_URL -O ${{ runner.temp }}/gcc-arm.bz2
+        tar x -f ${{ runner.temp }}/gcc-arm.bz2 -C ${{ runner.tool_cache }}
+
+        gcc_arm=$(ls -d ${{ runner.tool_cache }}/gcc-arm-none-eabi-*)
+        echo ARM GCC in: $gcc_arm
+        export PATH=$gcc_arm/bin:$PATH
+        arm-none-eabi-gcc --version
+
+    #
+    # Build
+    #
+    - name: Prepare target
+      run: |
+        yotta target $TARGET
+        yotta install
+        yotta list
+
+    - name: Build project
+      run: |
+        gcc_arm=$(ls -d ${{ runner.tool_cache }}/gcc-arm-none-eabi-*)
+        export PATH=$gcc_arm/bin:$PATH
+        yotta build
+
+    #
+    # Publish
+    #
+    - name: Copy all intermediate files
+      if: false   # Comment this out to publish all intermediate files
+      run: |
+        generated=$(git ls-files -o -i --exclude='*')
+        dest=../generated
+        mkdir $dest
+        for x in $generated; do
+            # Workaround for spaces in the file-names
+            if test -e $x; then
+              dir=$dest/$(dirname $x)
+              echo "$x => $dir"
+              mkdir -p $dir
+              cp -a $x $dir
+            fi
+          done
+
+    - uses: actions/upload-artifact@v1
+      continue-on-error: true
+      with:
+        name: intermediate
+        path: ../generated
+
+    - name: Copy result
+      run: |
+        mkdir -p ../result
+        cp build/${{ env.TARGET }}/${{ env.MODULE_NAME }}/${{ env.MODULE_NAME }}* ../result
+
+    - uses: actions/upload-artifact@v1
+      with:
+        name: result
+        path: ../result
