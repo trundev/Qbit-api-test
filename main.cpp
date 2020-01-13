@@ -36,7 +36,7 @@ int main()
     // Insert your code here!
     uBit.display.scroll("Qbit API");
 
-    qbit::qbitInit();
+    qbit::qbitInit(&uBit.messageBus, &uBit.serial, &uBit.io);
 
     // If main exits, there may still be other fibers running or registered event handlers etc.
     // Simply release this fiber, which will mean we enter the scheduler. Worse case, we then
