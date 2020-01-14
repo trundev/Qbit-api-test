@@ -38,6 +38,10 @@ int main()
 
     qbit::qbitInit(&uBit.messageBus, &uBit.serial, &uBit.io);
 
+    // From test.cpp
+    void ubit_test(MicroBit &uBit);
+    ubit_test(uBit);
+
     // If main exits, there may still be other fibers running or registered event handlers etc.
     // Simply release this fiber, which will mean we enter the scheduler. Worse case, we then
     // sit in the idle task forever, in a power efficient sleep.
