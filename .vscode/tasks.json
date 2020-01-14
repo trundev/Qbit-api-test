@@ -1,0 +1,31 @@
+{
+    "tasks": [
+        {
+            "type": "shell",
+            "label": "yotta update",
+            "command": "${env:ComSpec}",
+            "args": [
+                "/c",
+                "call ..\\..\\setvars.bat && yotta target bbc-microbit-classic-gcc && yotta update"
+            ],
+            "group": "build",
+            "problemMatcher": [
+                "$tsc"
+            ]
+        },
+        {
+            "type": "shell",
+            "label": "yotta build",
+            "command": "${env:ComSpec}",
+            "args": [
+                "/c",
+                "call ..\\..\\setvars.bat && yotta build"
+            ],
+            "group": "build",
+            "problemMatcher": [
+                "$gcc"
+            ]
+        }
+    ],
+    "version": "2.0.0"
+}
