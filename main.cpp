@@ -28,15 +28,106 @@ DEALINGS IN THE SOFTWARE.
 
 MicroBit uBit;
 
+static void onIR(MicroBitEvent e)
+{
+    switch (e.value)
+    {
+    case qbit::UP:
+        qbit::setQbitRunSpeed(80, qbit::OrientionType_GO_AHEAD);
+        qbit::setPixelRGB(qbit::QbitRGBLight::Light1, qbit::QbitRGBLight::White);
+        qbit::setPixelRGB(qbit::QbitRGBLight::Light2, qbit::QbitRGBLight::White);
+        qbit::showLight();
+        uBit.display.print("^");
+        break;
+
+    case qbit::DOWN:
+        qbit::setQbitRunSpeed(80, qbit::OrientionType_GO_BACK);
+        qbit::setPixelRGB(qbit::QbitRGBLight::Light1, qbit::QbitRGBLight::Red);
+        qbit::setPixelRGB(qbit::QbitRGBLight::Light2, qbit::QbitRGBLight::Red);
+        qbit::showLight();
+        uBit.display.print("-");
+        break;
+
+    case qbit::LEFT:
+        qbit::setQbitRunSpeed(60, qbit::OrientionType_TURN_LEFT);
+        qbit::setPixelRGB(qbit::QbitRGBLight::Light1, qbit::QbitRGBLight::Orange);
+        qbit::setPixelRGBArgs(qbit::QbitRGBLight::Light2, 0);
+        qbit::showLight();
+        uBit.display.print(">");
+        break;
+
+    case qbit::RIGHT:
+        qbit::setQbitRunSpeed(60, qbit::OrientionType_TURN_RIGHT);
+        qbit::setPixelRGB(qbit::QbitRGBLight::Light2, qbit::QbitRGBLight::Orange);
+        qbit::setPixelRGBArgs(qbit::QbitRGBLight::Light1, 0);
+        qbit::showLight();
+        uBit.display.print("<");
+        break;
+
+    case qbit::A:
+        uBit.display.print('x');
+        qbit::clearLight();
+        qbit::setQbitRun(qbit::RunType_STOP);
+        break;
+
+    case qbit::C:
+        uBit.display.scroll(ManagedString("V:") + qbit::getBatVoltage());
+        qbit::setQbitRun(qbit::RunType_RUN);
+        break;
+
+    case qbit::D:
+        uBit.display.scroll(ManagedString("D:") + qbit::Ultrasonic());
+        break;
+
+    case qbit::R0:
+        qbit::setBrightness(10);
+        qbit::setPixelRGB(qbit::QbitRGBLight::Light1, qbit::QbitRGBLight::Green);
+        qbit::setPixelRGB(qbit::QbitRGBLight::Light2, qbit::QbitRGBLight::Green);
+        qbit::showLight();
+        break;
+
+    case qbit::R1:
+        qbit::setBrightness(100);
+        qbit::setPixelRGB(qbit::QbitRGBLight::Light1, qbit::QbitRGBLight::Green);
+        qbit::setPixelRGB(qbit::QbitRGBLight::Light2, qbit::QbitRGBLight::Green);
+        qbit::showLight();
+        break;
+
+    case qbit::R2:
+        qbit::setBrightness(200);
+        qbit::setPixelRGB(qbit::QbitRGBLight::Light1, qbit::QbitRGBLight::Green);
+        qbit::setPixelRGB(qbit::QbitRGBLight::Light2, qbit::QbitRGBLight::Green);
+        qbit::showLight();
+        break;
+
+    case qbit::R3:
+        qbit::setBrightness(255);
+        qbit::setPixelRGB(qbit::QbitRGBLight::Light1, qbit::QbitRGBLight::Green);
+        qbit::setPixelRGB(qbit::QbitRGBLight::Light2, qbit::QbitRGBLight::Green);
+        qbit::showLight();
+        break;
+    }
+}
+
+static void onNoIR(MicroBitEvent e)
+{
+    qbit::setQbitRunSpeed(0, qbit::OrientionType_STOP);
+    qbit::clearLight();
+    uBit.display.clear();
+}
+
 int main()
 {
     // Initialise the micro:bit runtime.
     uBit.init();
 
     // Insert your code here!
-    uBit.display.scroll("Qbit API");
+    uBit.display.scroll("IR");
 
     qbit::qbitInit(&uBit.messageBus, &uBit.serial, &uBit.io);
+
+    qbit::onQbit_remote_ir_pressed((qbit::IRKEY)MICROBIT_EVT_ANY, onIR);
+    qbit::onQbit_remote_no_ir(onNoIR);
 
     // If main exits, there may still be other fibers running or registered event handlers etc.
     // Simply release this fiber, which will mean we enter the scheduler. Worse case, we then
