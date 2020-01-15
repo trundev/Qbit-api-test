@@ -33,10 +33,13 @@ DEALINGS IN THE SOFTWARE.
 
 
 MicroBit uBit;
+
 static MicroBitUARTService *uBut_uart = NULL;
+bool connectedBT = false;
 
 #define NO_IRKEY ((qbit::IRKEY)0)
 static qbit::IRKEY activeIRkey = NO_IRKEY;
+static bool needIrStop = false;
 
 static void onIR(MicroBitEvent e)
 {
@@ -50,6 +53,7 @@ static void onIR(MicroBitEvent e)
         qbit::setPixelRGB(qbit::QbitRGBLight::Light2, qbit::QbitRGBLight::White);
         qbit::showLight();
         uBit.display.print("^");
+        needIrStop = true;
         break;
 
     case qbit::DOWN:
@@ -58,6 +62,7 @@ static void onIR(MicroBitEvent e)
         qbit::setPixelRGB(qbit::QbitRGBLight::Light2, qbit::QbitRGBLight::Red);
         qbit::showLight();
         uBit.display.print("-");
+        needIrStop = true;
         break;
 
     case qbit::LEFT:
@@ -66,6 +71,7 @@ static void onIR(MicroBitEvent e)
         qbit::setPixelRGBArgs(qbit::QbitRGBLight::Light2, 0);
         qbit::showLight();
         uBit.display.print(">");
+        needIrStop = true;
         break;
 
     case qbit::RIGHT:
@@ -74,6 +80,7 @@ static void onIR(MicroBitEvent e)
         qbit::setPixelRGBArgs(qbit::QbitRGBLight::Light1, 0);
         qbit::showLight();
         uBit.display.print("<");
+        needIrStop = true;
         break;
 
     // A(red) - Turn balance off
@@ -88,17 +95,18 @@ static void onIR(MicroBitEvent e)
         {
             uBit.display.clear();
 
-            MicroBitImage image(uBit.display.image);
+            MicroBitImage image(uBit.display.image.getWidth(), uBit.display.image.getHeight());
             image.print('_');
-            uBit.display.printAsync(image, 0, 0);
+            uBit.display.print(image);
+            // Combine '-' with '<' and/or '>'
             if (qbit::obstacleSensor(qbit::SENSOR1_OBSTACLE))
             {
-                image.print('<');
+                image.print('>');
                 uBit.display.printAsync(image, 0, 0, true);
             }
             if (qbit::obstacleSensor(qbit::SENSOR2_OBSTACLE))
             {
-                image.print('>');
+                image.print('<');
                 uBit.display.printAsync(image, 0, 0, true);
             }
         }
@@ -176,10 +184,26 @@ static void onIR(MicroBitEvent e)
 
 static void onNoIR(MicroBitEvent e)
 {
-    qbit::setQbitRunSpeed(0, qbit::OrientionType_STOP);
-    qbit::clearLight();
-    uBit.display.clear();
+    if (needIrStop)
+    {
+        qbit::setQbitRunSpeed(0, qbit::OrientionType_STOP);
+        qbit::clearLight();
+        uBit.display.clear();
+        needIrStop = false;
+    }
     activeIRkey = NO_IRKEY;
+}
+
+static void onConnected(MicroBitEvent)
+{
+    uBit.display.scroll("C");
+    connectedBT = true;
+}
+
+static void onDisconnected(MicroBitEvent)
+{
+    uBit.display.scroll("D");
+    connectedBT = false;
 }
 
 static void onUartDelimMatch(MicroBitEvent e)
@@ -234,8 +258,8 @@ static void onUartDelimMatch(MicroBitEvent e)
                 cmdOk = false;
             }
 
-            if (cmdOk)
-                uBut_uart->send(cmdStr + "$");
+//            if (cmdOk)
+//                uBut_uart->send(cmdStr + "$");
         }
         break;
 
@@ -266,9 +290,11 @@ static void onUartDelimMatch(MicroBitEvent e)
     case qbit::CmdType_RGB_LIGHT:
         {
             int arg1 = qbit::getArgs(cmdStr, 1);
-            int arg2 = qbit::getArgs(cmdStr, 2);
+            int arg2 = qbit::getArgs(cmdStr, 1);
             qbit::setPixelRGBArgs(qbit::QbitRGBLight::Light1, arg1);
-            qbit::setPixelRGBArgs(qbit::QbitRGBLight::Light1, arg2);
+            qbit::setPixelRGBArgs(qbit::QbitRGBLight::Light2, arg2);
+            qbit::showLight();
+//            uBut_uart->send(cmdStr + "$");
         }
         break;
 
@@ -277,7 +303,7 @@ static void onUartDelimMatch(MicroBitEvent e)
         break;
 
     case qbit::CmdType_VERSION:
-        uBut_uart->send(cmdStr + "22|$");
+        uBut_uart->send(cmdStr.substring(0, 7) + "22|$");
         break;
     }
 }
@@ -290,15 +316,18 @@ int main()
     // Insert your code here!
     uBit.display.scroll("IR+BT");
 
-    qbit::qbitInit(&uBit.messageBus, &uBit.serial, &uBit.io);
-
     // Bluetooth UART service
     uBut_uart = new MicroBitUARTService(*uBit.ble, 32, 32);
     if (uBut_uart)
     {
-        uBut_uart->eventOn("$");
+        uBit.messageBus.listen(MICROBIT_ID_BLE, MICROBIT_BLE_EVT_CONNECTED, onConnected);
+        uBit.messageBus.listen(MICROBIT_ID_BLE, MICROBIT_BLE_EVT_DISCONNECTED, onDisconnected);
         uBit.messageBus.listen(MICROBIT_ID_BLE_UART, MICROBIT_UART_S_EVT_DELIM_MATCH, onUartDelimMatch);
+        uBut_uart->eventOn("$");
     }
+
+    // Qbit
+    qbit::qbitInit(&uBit.messageBus, &uBit.serial, &uBit.io);
 
     qbit::onQbit_remote_ir_pressed((qbit::IRKEY)MICROBIT_EVT_ANY, onIR);
     qbit::onQbit_remote_no_ir(onNoIR);
