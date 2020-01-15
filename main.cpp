@@ -24,16 +24,28 @@ DEALINGS IN THE SOFTWARE.
 */
 
 #include "MicroBit.h"
+#include "MicroBitUARTService.h"
 #include "Qbit-api.h"
 
+
+#define SPEED_GO    80
+#define SPEED_TURN  40
+
+
 MicroBit uBit;
+static MicroBitUARTService *uBut_uart = NULL;
+
+#define NO_IRKEY ((qbit::IRKEY)0)
+static qbit::IRKEY activeIRkey = NO_IRKEY;
 
 static void onIR(MicroBitEvent e)
 {
-    switch (e.value)
+    activeIRkey = (qbit::IRKEY)e.value;
+    switch (activeIRkey)
     {
+    // Arrows - move
     case qbit::UP:
-        qbit::setQbitRunSpeed(80, qbit::OrientionType_GO_AHEAD);
+        qbit::setQbitRunSpeed(SPEED_GO, qbit::OrientionType_GO_AHEAD);
         qbit::setPixelRGB(qbit::QbitRGBLight::Light1, qbit::QbitRGBLight::White);
         qbit::setPixelRGB(qbit::QbitRGBLight::Light2, qbit::QbitRGBLight::White);
         qbit::showLight();
@@ -41,7 +53,7 @@ static void onIR(MicroBitEvent e)
         break;
 
     case qbit::DOWN:
-        qbit::setQbitRunSpeed(80, qbit::OrientionType_GO_BACK);
+        qbit::setQbitRunSpeed(SPEED_GO, qbit::OrientionType_GO_BACK);
         qbit::setPixelRGB(qbit::QbitRGBLight::Light1, qbit::QbitRGBLight::Red);
         qbit::setPixelRGB(qbit::QbitRGBLight::Light2, qbit::QbitRGBLight::Red);
         qbit::showLight();
@@ -49,7 +61,7 @@ static void onIR(MicroBitEvent e)
         break;
 
     case qbit::LEFT:
-        qbit::setQbitRunSpeed(60, qbit::OrientionType_TURN_LEFT);
+        qbit::setQbitRunSpeed(SPEED_TURN, qbit::OrientionType_TURN_LEFT);
         qbit::setPixelRGB(qbit::QbitRGBLight::Light1, qbit::QbitRGBLight::Orange);
         qbit::setPixelRGBArgs(qbit::QbitRGBLight::Light2, 0);
         qbit::showLight();
@@ -57,28 +69,53 @@ static void onIR(MicroBitEvent e)
         break;
 
     case qbit::RIGHT:
-        qbit::setQbitRunSpeed(60, qbit::OrientionType_TURN_RIGHT);
+        qbit::setQbitRunSpeed(SPEED_TURN, qbit::OrientionType_TURN_RIGHT);
         qbit::setPixelRGB(qbit::QbitRGBLight::Light2, qbit::QbitRGBLight::Orange);
         qbit::setPixelRGBArgs(qbit::QbitRGBLight::Light1, 0);
         qbit::showLight();
         uBit.display.print("<");
         break;
 
+    // A(red) - Turn balance off
     case qbit::A:
         uBit.display.print('x');
         qbit::clearLight();
         qbit::setQbitRun(qbit::RunType_STOP);
         break;
 
+    // B - Obstacle sensor
+    case qbit::B:
+        {
+            uBit.display.clear();
+
+            MicroBitImage image(uBit.display.image);
+            image.print('_');
+            uBit.display.printAsync(image, 0, 0);
+            if (qbit::obstacleSensor(qbit::SENSOR1_OBSTACLE))
+            {
+                image.print('<');
+                uBit.display.printAsync(image, 0, 0, true);
+            }
+            if (qbit::obstacleSensor(qbit::SENSOR2_OBSTACLE))
+            {
+                image.print('>');
+                uBit.display.printAsync(image, 0, 0, true);
+            }
+        }
+        break;
+
+    // C(green) - Turn balance on
     case qbit::C:
-        uBit.display.scroll(ManagedString("V:") + qbit::getBatVoltage());
         qbit::setQbitRun(qbit::RunType_RUN);
+        uBit.display.scrollAsync(ManagedString("V:") + qbit::getBatVoltage());
         break;
 
+    // D - Distance sensor
     case qbit::D:
-        uBit.display.scroll(ManagedString("D:") + qbit::Ultrasonic());
+        uBit.display.scrollAsync(ManagedString("D:") + qbit::Ultrasonic());
         break;
 
+    // 0-3 - RGB LED brightness
     case qbit::R0:
         qbit::setBrightness(10);
         qbit::setPixelRGB(qbit::QbitRGBLight::Light1, qbit::QbitRGBLight::Green);
@@ -106,6 +143,34 @@ static void onIR(MicroBitEvent e)
         qbit::setPixelRGB(qbit::QbitRGBLight::Light2, qbit::QbitRGBLight::Green);
         qbit::showLight();
         break;
+
+    // 4 - Carrier mode
+    case qbit::R4:
+        qbit::qbit_carrier();
+        uBit.display.scrollAsync("Carrier");
+        break;
+
+    // 5 - Set balance angle
+    case qbit::R5:
+        qbit::setBLAngle();
+        uBit.display.scrollAsync("setBLAngle");
+        break;
+
+    // 6, 7 - Toggle Ext1, Ext2
+    case qbit::R6:
+    case qbit::R7:
+        {
+            qbit::Exts ext = e.value == qbit::R6 ? qbit::Exts_Ext1 : qbit::Exts_Ext2;
+            qbit::pinIOStatus iostatus = qbit::readExtsIODigital(ext) ? qbit::pinIOStatus_Low : qbit::pinIOStatus_Hight;
+            qbit::setExtsIO(ext, iostatus);
+            uBit.display.scrollAsync(ManagedString("E") + ext + ":" + iostatus);
+        }
+        break;
+
+    // 8 - Read Ext1 analog
+    case qbit::R8:
+        uBit.display.scrollAsync(ManagedString("E1:") + qbit::readExt1Analog());
+        break;
     }
 }
 
@@ -114,6 +179,107 @@ static void onNoIR(MicroBitEvent e)
     qbit::setQbitRunSpeed(0, qbit::OrientionType_STOP);
     qbit::clearLight();
     uBit.display.clear();
+    activeIRkey = NO_IRKEY;
+}
+
+static void onUartDelimMatch(MicroBitEvent e)
+{
+    ManagedString cmdStr = uBut_uart->readUntil("$", ASYNC);
+
+    qbit::CmdType cmdType = (qbit::CmdType)qbit::analyzeBluetoothCmd(cmdStr);
+    switch (cmdType)
+    {
+    case qbit::CmdType_NO_COMMAND:
+        break;
+
+    case qbit::CmdType_CAR_RUN:
+        {
+            int type = qbit::getArgs(cmdStr, 1);
+            bool cmdOk = true;
+
+            if (type == qbit::getRunCarType(qbit::RunCmdType_STOP))
+            {
+                qbit::setQbitRunSpeed(0, qbit::OrientionType_STOP);
+            }
+            else if (type == qbit::getRunCarType(qbit::RunCmdType_GO_AHEAD))
+            {
+                qbit::setQbitRunSpeed(SPEED_GO, qbit::OrientionType_GO_AHEAD);
+            }
+            else if (type == qbit::getRunCarType(qbit::RunCmdType_GO_BACK))
+            {
+                qbit::setQbitRunSpeed(SPEED_GO, qbit::OrientionType_GO_BACK);
+            }
+            else if (type == qbit::getRunCarType(qbit::RunCmdType_TURN_LEFT))
+            {
+                qbit::setQbitRunSpeed(SPEED_TURN, qbit::OrientionType_TURN_LEFT);
+            }
+            else if (type == qbit::getRunCarType(qbit::RunCmdType_TURN_RIGHT))
+            {
+                qbit::setQbitRunSpeed(SPEED_TURN, qbit::OrientionType_TURN_RIGHT);
+            }
+            else if (type == qbit::getRunCarType(qbit::RunCmdType_GO_AHEAD_SLOW))
+            {
+                qbit::setQbitRunSpeed(SPEED_GO / 2, qbit::OrientionType_GO_AHEAD);
+            }
+            else if (type == qbit::getRunCarType(qbit::RunCmdType_TURN_LEFT_SLOW))
+            {
+                qbit::setQbitRunSpeed(SPEED_TURN / 2, qbit::OrientionType_TURN_LEFT);
+            }
+            else if (type == qbit::getRunCarType(qbit::RunCmdType_TURN_RIGHT_SLOW))
+            {
+                qbit::setQbitRunSpeed(SPEED_TURN / 2, qbit::OrientionType_TURN_RIGHT);
+            }
+            else
+            {
+                cmdOk = false;
+            }
+
+            if (cmdOk)
+                uBut_uart->send(cmdStr + "$");
+        }
+        break;
+
+    case qbit::CmdType_SERVO:
+        //TODO:
+        break;
+
+    case qbit::CmdType_ULTRASONIC:
+        uBut_uart->send(qbit::convertUltrasonic(qbit::Ultrasonic()));
+        break;
+
+    case qbit::CmdType_TEMPERATURE:
+        uBut_uart->send(qbit::convertTemperature(uBit.thermometer.getTemperature()));
+        break;
+
+    case qbit::CmdType_SOUND:
+        //TODO:
+        break;
+
+    case qbit::CmdType_LIGHT:
+        uBut_uart->send(qbit::convertLight(uBit.display.readLightLevel()));
+        break;
+
+    case qbit::CmdType_BAT:
+        uBut_uart->send(qbit::convertBattery(qbit::getBatVoltage()));
+        break;
+
+    case qbit::CmdType_RGB_LIGHT:
+        {
+            int arg1 = qbit::getArgs(cmdStr, 1);
+            int arg2 = qbit::getArgs(cmdStr, 2);
+            qbit::setPixelRGBArgs(qbit::QbitRGBLight::Light1, arg1);
+            qbit::setPixelRGBArgs(qbit::QbitRGBLight::Light1, arg2);
+        }
+        break;
+
+    case qbit::CmdType_DIDI:
+        //TODO:
+        break;
+
+    case qbit::CmdType_VERSION:
+        uBut_uart->send(cmdStr + "22|$");
+        break;
+    }
 }
 
 int main()
@@ -122,9 +288,17 @@ int main()
     uBit.init();
 
     // Insert your code here!
-    uBit.display.scroll("IR");
+    uBit.display.scroll("IR+BT");
 
     qbit::qbitInit(&uBit.messageBus, &uBit.serial, &uBit.io);
+
+    // Bluetooth UART service
+    uBut_uart = new MicroBitUARTService(*uBit.ble, 32, 32);
+    if (uBut_uart)
+    {
+        uBut_uart->eventOn("$");
+        uBit.messageBus.listen(MICROBIT_ID_BLE_UART, MICROBIT_UART_S_EVT_DELIM_MATCH, onUartDelimMatch);
+    }
 
     qbit::onQbit_remote_ir_pressed((qbit::IRKEY)MICROBIT_EVT_ANY, onIR);
     qbit::onQbit_remote_no_ir(onNoIR);
