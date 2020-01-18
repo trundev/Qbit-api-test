@@ -25,6 +25,17 @@
             "problemMatcher": [
                 "$gcc"
             ]
+        },
+        {
+            "type": "shell",
+            "label": "copy to M:",
+            "command": "${env:ComSpec}",
+            "args": [
+                "/c",
+                "copy build\\bbc-microbit-classic-gcc\\Qbit-api-test\\Qbit-api-test-combined.hex M:"
+            ],
+            "group": "build",
+            "problemMatcher": []
         }
     ],
     "version": "2.0.0"

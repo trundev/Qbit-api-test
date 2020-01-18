@@ -28,8 +28,8 @@ DEALINGS IN THE SOFTWARE.
 #include "Qbit-api.h"
 
 
-#define SPEED_GO    80
-#define SPEED_TURN  40
+#define SPEED_GO    60
+#define SPEED_TURN  30
 
 
 MicroBit uBit;
@@ -41,6 +41,79 @@ bool connectedBT = false;
 static qbit::IRKEY activeIRkey = NO_IRKEY;
 static bool needIrStop = false;
 
+static bool doCarRun(qbit::CarRunCmdType type)
+{
+    switch (type)
+    {
+    case qbit::RunCmdType_STOP:
+        qbit::setQbitRunSpeed(0, qbit::OrientionType_STOP);
+        qbit::clearLight();
+        uBit.display.clear();
+        break;
+
+    case qbit::RunCmdType_GO_AHEAD:
+        qbit::setQbitRunSpeed(SPEED_GO, qbit::OrientionType_GO_AHEAD);
+        qbit::setPixelRGB(qbit::QbitRGBLight::Light1, qbit::QbitRGBLight::White);
+        qbit::setPixelRGB(qbit::QbitRGBLight::Light2, qbit::QbitRGBLight::White);
+        qbit::showLight();
+        uBit.display.print("^");
+        break;
+
+    case qbit::RunCmdType_GO_BACK:
+        qbit::setQbitRunSpeed(SPEED_GO, qbit::OrientionType_GO_BACK);
+        qbit::setPixelRGB(qbit::QbitRGBLight::Light1, qbit::QbitRGBLight::Red);
+        qbit::setPixelRGB(qbit::QbitRGBLight::Light2, qbit::QbitRGBLight::Red);
+        qbit::showLight();
+        uBit.display.print("-");
+        break;
+
+    case qbit::RunCmdType_TURN_LEFT:
+        qbit::setQbitRunSpeed(SPEED_TURN, qbit::OrientionType_TURN_LEFT);
+        qbit::setPixelRGB(qbit::QbitRGBLight::Light1, qbit::QbitRGBLight::Orange);
+        qbit::setPixelRGBArgs(qbit::QbitRGBLight::Light2, 0);
+        qbit::showLight();
+        uBit.display.print(">");
+        break;
+
+    case qbit::RunCmdType_TURN_RIGHT:
+        qbit::setQbitRunSpeed(SPEED_TURN, qbit::OrientionType_TURN_RIGHT);
+        qbit::setPixelRGB(qbit::QbitRGBLight::Light2, qbit::QbitRGBLight::Orange);
+        qbit::setPixelRGBArgs(qbit::QbitRGBLight::Light1, 0);
+        qbit::showLight();
+        uBit.display.print("<");
+        break;
+
+    case qbit::RunCmdType_GO_AHEAD_SLOW:
+        qbit::setQbitRunSpeed(SPEED_GO / 2, qbit::OrientionType_GO_AHEAD);
+        qbit::setPixelRGB(qbit::QbitRGBLight::Light1, qbit::QbitRGBLight::White);
+        qbit::setPixelRGB(qbit::QbitRGBLight::Light2, qbit::QbitRGBLight::White);
+        qbit::showLight();
+        uBit.display.print(".");
+        break;
+
+    case qbit::RunCmdType_TURN_LEFT_SLOW:
+        qbit::setQbitRunSpeed(SPEED_TURN / 2, qbit::OrientionType_TURN_LEFT);
+        qbit::setPixelRGB(qbit::QbitRGBLight::Light1, qbit::QbitRGBLight::Red);
+        qbit::setPixelRGBArgs(qbit::QbitRGBLight::Light2, 0);
+        qbit::showLight();
+        uBit.display.print(">");
+        break;
+
+    case qbit::RunCmdType_TURN_RIGHT_SLOW:
+        qbit::setQbitRunSpeed(SPEED_TURN / 2, qbit::OrientionType_TURN_RIGHT);
+        qbit::setPixelRGB(qbit::QbitRGBLight::Light2, qbit::QbitRGBLight::Red);
+        qbit::setPixelRGBArgs(qbit::QbitRGBLight::Light1, 0);
+        qbit::showLight();
+        uBit.display.print("<");
+        break;
+
+    default:
+        return false;
+    }
+
+    return true;
+}
+
 static void onIR(MicroBitEvent e)
 {
     activeIRkey = (qbit::IRKEY)e.value;
@@ -48,39 +121,19 @@ static void onIR(MicroBitEvent e)
     {
     // Arrows - move
     case qbit::UP:
-        qbit::setQbitRunSpeed(SPEED_GO, qbit::OrientionType_GO_AHEAD);
-        qbit::setPixelRGB(qbit::QbitRGBLight::Light1, qbit::QbitRGBLight::White);
-        qbit::setPixelRGB(qbit::QbitRGBLight::Light2, qbit::QbitRGBLight::White);
-        qbit::showLight();
-        uBit.display.print("^");
-        needIrStop = true;
+        needIrStop = doCarRun(qbit::RunCmdType_GO_AHEAD);
         break;
 
     case qbit::DOWN:
-        qbit::setQbitRunSpeed(SPEED_GO, qbit::OrientionType_GO_BACK);
-        qbit::setPixelRGB(qbit::QbitRGBLight::Light1, qbit::QbitRGBLight::Red);
-        qbit::setPixelRGB(qbit::QbitRGBLight::Light2, qbit::QbitRGBLight::Red);
-        qbit::showLight();
-        uBit.display.print("-");
-        needIrStop = true;
+        needIrStop = doCarRun(qbit::RunCmdType_GO_BACK);
         break;
 
     case qbit::LEFT:
-        qbit::setQbitRunSpeed(SPEED_TURN, qbit::OrientionType_TURN_LEFT);
-        qbit::setPixelRGB(qbit::QbitRGBLight::Light1, qbit::QbitRGBLight::Orange);
-        qbit::setPixelRGBArgs(qbit::QbitRGBLight::Light2, 0);
-        qbit::showLight();
-        uBit.display.print(">");
-        needIrStop = true;
+        needIrStop = doCarRun(qbit::RunCmdType_TURN_LEFT);
         break;
 
     case qbit::RIGHT:
-        qbit::setQbitRunSpeed(SPEED_TURN, qbit::OrientionType_TURN_RIGHT);
-        qbit::setPixelRGB(qbit::QbitRGBLight::Light2, qbit::QbitRGBLight::Orange);
-        qbit::setPixelRGBArgs(qbit::QbitRGBLight::Light1, 0);
-        qbit::showLight();
-        uBit.display.print("<");
-        needIrStop = true;
+        needIrStop = doCarRun(qbit::RunCmdType_TURN_RIGHT);
         break;
 
     // A(red) - Turn balance off
@@ -186,9 +239,7 @@ static void onNoIR(MicroBitEvent e)
 {
     if (needIrStop)
     {
-        qbit::setQbitRunSpeed(0, qbit::OrientionType_STOP);
-        qbit::clearLight();
-        uBit.display.clear();
+        doCarRun(qbit::RunCmdType_STOP);
         needIrStop = false;
     }
     activeIRkey = NO_IRKEY;
@@ -219,47 +270,10 @@ static void onUartDelimMatch(MicroBitEvent e)
     case qbit::CmdType_CAR_RUN:
         {
             int type = qbit::getArgs(cmdStr, 1);
-            bool cmdOk = true;
-
-            if (type == qbit::getRunCarType(qbit::RunCmdType_STOP))
+            if (doCarRun((qbit::CarRunCmdType)type))
             {
-                qbit::setQbitRunSpeed(0, qbit::OrientionType_STOP);
+                uBut_uart->send(cmdStr + "$");
             }
-            else if (type == qbit::getRunCarType(qbit::RunCmdType_GO_AHEAD))
-            {
-                qbit::setQbitRunSpeed(SPEED_GO, qbit::OrientionType_GO_AHEAD);
-            }
-            else if (type == qbit::getRunCarType(qbit::RunCmdType_GO_BACK))
-            {
-                qbit::setQbitRunSpeed(SPEED_GO, qbit::OrientionType_GO_BACK);
-            }
-            else if (type == qbit::getRunCarType(qbit::RunCmdType_TURN_LEFT))
-            {
-                qbit::setQbitRunSpeed(SPEED_TURN, qbit::OrientionType_TURN_LEFT);
-            }
-            else if (type == qbit::getRunCarType(qbit::RunCmdType_TURN_RIGHT))
-            {
-                qbit::setQbitRunSpeed(SPEED_TURN, qbit::OrientionType_TURN_RIGHT);
-            }
-            else if (type == qbit::getRunCarType(qbit::RunCmdType_GO_AHEAD_SLOW))
-            {
-                qbit::setQbitRunSpeed(SPEED_GO / 2, qbit::OrientionType_GO_AHEAD);
-            }
-            else if (type == qbit::getRunCarType(qbit::RunCmdType_TURN_LEFT_SLOW))
-            {
-                qbit::setQbitRunSpeed(SPEED_TURN / 2, qbit::OrientionType_TURN_LEFT);
-            }
-            else if (type == qbit::getRunCarType(qbit::RunCmdType_TURN_RIGHT_SLOW))
-            {
-                qbit::setQbitRunSpeed(SPEED_TURN / 2, qbit::OrientionType_TURN_RIGHT);
-            }
-            else
-            {
-                cmdOk = false;
-            }
-
-//            if (cmdOk)
-//                uBut_uart->send(cmdStr + "$");
         }
         break;
 

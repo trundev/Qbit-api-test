@@ -95,5 +95,5 @@ jobs:
 
     - uses: actions/upload-artifact@v1
       with:
-        name: result
+        name: ${{ format('{0}-{1}', env.MODULE_NAME, github.sha ) }}
         path: ../result
