@@ -4,7 +4,7 @@
   "description": "Qbit-api test program",
   "license": "MIT",
   "dependencies": {
-    "microbit": "lancaster-university/microbit#v2.1.1",
+    "microbit": "lancaster-university/microbit#v2.2.0-rc3.1",
     "Qbit-api": "trundev/Qbit-api#master-gcc"
   },
   "targetDependencies": {},
